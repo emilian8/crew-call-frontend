@@ -1,0 +1,272 @@
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import type { Duty, Event } from '@/services/api'
+import { apiService } from '@/services/api'
+
+export const useDutyStore = defineStore('duty', () => {
+  // State
+  const events = ref<Event[]>([])
+  const currentEvent = ref<Event | null>(null)
+  const currentActor = ref<string>('actor-1') // Mock actor ID for now
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+
+  // Getters
+  const currentEventDuties = computed(() => {
+    return currentEvent.value?.duties || []
+  })
+
+  const openDuties = computed(() => {
+    return currentEventDuties.value.filter(duty => duty.status === 'Open')
+  })
+
+  const assignedDuties = computed(() => {
+    return currentEventDuties.value.filter(duty => duty.status === 'Assigned')
+  })
+
+  const doneDuties = computed(() => {
+    return currentEventDuties.value.filter(duty => duty.status === 'Done')
+  })
+
+  // Actions
+  const setCurrentEvent = (event: Event) => {
+    currentEvent.value = event
+  }
+
+  const setError = (message: string | null) => {
+    error.value = message
+  }
+
+  const setLoading = (isLoading: boolean) => {
+    loading.value = isLoading
+  }
+
+  const addDuty = async (title: string, dueAt: string) => {
+    if (!currentEvent.value) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('Adding duty to backend:', { title, dueAt, eventId: currentEvent.value.id })
+
+      const response = await apiService.addDuty(
+        currentEvent.value.id,
+        currentActor.value,
+        title,
+        dueAt
+      )
+
+      if (response.error) {
+        setError(response.error)
+        console.error('Backend error:', response.error)
+        return
+      }
+
+      // Add the new duty to the current event
+      if (response.data?.duty) {
+        const newDuty: Duty = {
+          id: response.data.duty,
+          title,
+          dueAt,
+          status: 'Open',
+          event: currentEvent.value.id,
+          updatedAt: new Date().toISOString(),
+        }
+
+        if (currentEvent.value) {
+          currentEvent.value.duties.push(newDuty)
+          console.log('Successfully added duty:', newDuty)
+        }
+      }
+    } catch (err) {
+      setError('Failed to add duty')
+      console.error('Error adding duty:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const assignDuty = async (dutyId: string, assignee: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('Assigning duty:', { dutyId, assignee })
+
+      const response = await apiService.assignDuty(dutyId, currentActor.value, assignee)
+
+      if (response.error) {
+        setError(response.error)
+        console.error('Backend error:', response.error)
+        return
+      }
+
+      // Update the duty in the store
+      const duty = currentEventDuties.value.find(d => d.id === dutyId)
+      if (duty) {
+        duty.status = 'Assigned'
+        duty.assignee = assignee
+        duty.updatedAt = new Date().toISOString()
+        console.log('Successfully assigned duty:', duty)
+      }
+    } catch (err) {
+      setError('Failed to assign duty')
+      console.error('Error assigning duty:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const unassignDuty = async (dutyId: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiService.unassignDuty(dutyId, currentActor.value)
+
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      // Update the duty in the store
+      const duty = currentEventDuties.value.find(d => d.id === dutyId)
+      if (duty) {
+        duty.status = 'Open'
+        duty.assignee = undefined
+        duty.updatedAt = new Date().toISOString()
+      }
+    } catch (err) {
+      setError('Failed to unassign duty')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const markDone = async (dutyId: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiService.markDone(dutyId, currentActor.value)
+
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      // Update the duty in the store
+      const duty = currentEventDuties.value.find(d => d.id === dutyId)
+      if (duty) {
+        duty.status = 'Done'
+        duty.updatedAt = new Date().toISOString()
+      }
+    } catch (err) {
+      setError('Failed to mark duty as done')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const reOpen = async (dutyId: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiService.reOpen(dutyId, currentActor.value)
+
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      // Update the duty in the store
+      const duty = currentEventDuties.value.find(d => d.id === dutyId)
+      if (duty) {
+        duty.status = 'Open'
+        duty.updatedAt = new Date().toISOString()
+      }
+    } catch (err) {
+      setError('Failed to reopen duty')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteDuty = async (dutyId: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiService.deleteDuty(dutyId, currentActor.value)
+
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      // Remove the duty from the store
+      if (currentEvent.value) {
+        currentEvent.value.duties = currentEvent.value.duties.filter(d => d.id !== dutyId)
+      }
+    } catch (err) {
+      setError('Failed to delete duty')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateDuty = async (dutyId: string, title?: string, dueAt?: string) => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await apiService.updateDuty(dutyId, currentActor.value, title, dueAt)
+
+      if (response.error) {
+        setError(response.error)
+        return
+      }
+
+      // Update the duty in the store
+      const duty = currentEventDuties.value.find(d => d.id === dutyId)
+      if (duty) {
+        if (title) duty.title = title
+        if (dueAt) duty.dueAt = dueAt
+        duty.updatedAt = new Date().toISOString()
+      }
+    } catch (err) {
+      setError('Failed to update duty')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    // State
+    events,
+    currentEvent,
+    currentActor,
+    loading,
+    error,
+
+    // Getters
+    currentEventDuties,
+    openDuties,
+    assignedDuties,
+    doneDuties,
+
+    // Actions
+    setCurrentEvent,
+    setError,
+    setLoading,
+    addDuty,
+    assignDuty,
+    unassignDuty,
+    markDone,
+    reOpen,
+    deleteDuty,
+    updateDuty,
+  }
+})
