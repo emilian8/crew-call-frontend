@@ -4,9 +4,10 @@
       <!-- Event List View -->
       <EventList
         v-if="currentView === 'event-list'"
-        :events="mockEvents"
+        :events="eventStore.events"
         @create-event="handleCreateEvent"
         @select-event="handleSelectEvent"
+        @delete-event="handleDeleteEvent"
       />
 
       <!-- Duty Board View -->
@@ -16,97 +17,91 @@
         @back="currentView = 'event-list'"
         @apply-template="handleApplyTemplate"
       />
+
+      <!-- Create Event Modal -->
+      <CreateEventModal
+        v-if="showCreateEvent"
+        @save="createEventFromModal"
+        @cancel="showCreateEvent = false"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useDutyStore } from '@/stores/dutyStore'
+import { useEventStore } from '@/stores/eventStore'
+import { useTemplateStore } from '@/stores/templateStore'
+import { useNotifyStore } from '@/stores/notifyStore'
+import { apiService } from '@/services/api'
 import type { Event } from '@/services/api'
 import EventList from '@/components/EventList.vue'
 import DutyBoard from '@/components/DutyBoard.vue'
+import CreateEventModal from '@/components/CreateEventModal.vue'
 
 const dutyStore = useDutyStore()
+const eventStore = useEventStore()
+const templateStore = useTemplateStore()
+const notifyStore = useNotifyStore()
 
 const currentView = ref<'event-list' | 'duty-board'>('event-list')
 const selectedEvent = ref<Event | null>(null)
+const showCreateEvent = ref(false)
 
-// Mock data for demonstration
-const mockEvents: Event[] = [
-  {
-    id: 'event-1',
-    title: 'Saturday Cleaning',
-    date: '2024-03-10T15:00:00Z',
-    duties: [
-      {
-        id: 'duty-1',
-        title: 'Sweep common room',
-        dueAt: '2024-03-10T17:00:00Z',
-        status: 'Assigned',
-        assignee: 'user-1',
-        event: 'event-1',
-        updatedAt: '2024-03-10T10:00:00Z'
-      },
-      {
-        id: 'duty-2',
-        title: 'Trash & recycling',
-        dueAt: '2024-03-10T18:00:00Z',
-        status: 'Done',
-        assignee: 'user-2',
-        event: 'event-1',
-        updatedAt: '2024-03-10T11:00:00Z'
-      },
-      {
-        id: 'duty-3',
-        title: 'Restock supplies',
-        dueAt: '2024-03-10T19:00:00Z',
-        status: 'Open',
-        event: 'event-1',
-        updatedAt: '2024-03-10T09:00:00Z'
-      }
-    ]
-  },
-  {
-    id: 'event-2',
-    title: 'Friday Party Setup',
-    date: '2024-03-15T17:00:00Z',
-    duties: [
-      {
-        id: 'duty-4',
-        title: 'Set up tables',
-        dueAt: '2024-03-15T18:00:00Z',
-        status: 'Open',
-        event: 'event-2',
-        updatedAt: '2024-03-15T10:00:00Z'
-      },
-      {
-        id: 'duty-5',
-        title: 'Decorate venue',
-        dueAt: '2024-03-15T19:00:00Z',
-        status: 'Assigned',
-        assignee: 'user-3',
-        event: 'event-2',
-        updatedAt: '2024-03-15T11:00:00Z'
-      }
-    ]
-  }
-]
+onMounted(async () => {
+  await eventStore.loadMyEvents()
+  await notifyStore.refresh(true)
+})
 
-const handleCreateEvent = () => {
-  // TODO: Implement event creation
-  console.log('Create new event')
+const handleCreateEvent = async () => {
+  showCreateEvent.value = true
 }
 
-const handleSelectEvent = (event: Event) => {
+const createEventFromModal = async (title: string, startsAtISO: string, endsAtISO: string) => {
+  showCreateEvent.value = false
+  await eventStore.createEvent(title, startsAtISO, endsAtISO)
+}
+
+const handleSelectEvent = async (event: Event) => {
   selectedEvent.value = event
   dutyStore.setCurrentEvent(event)
+  await dutyStore.loadEventDuties(event.id)
   currentView.value = 'duty-board'
 }
 
-const handleApplyTemplate = () => {
-  // TODO: Implement template application
-  console.log('Apply template')
+const handleDeleteEvent = async (eventId: string) => {
+  const role = eventStore.roles[eventId]
+  if (role !== 'Organizer') {
+    alert('Only organizers can delete events.')
+    return
+  }
+  if (!confirm('Delete this event? This will remove the event and its memberships.')) return
+  await eventStore.deleteEvent(eventId)
+}
+
+const handleApplyTemplate = async () => {
+  if (!selectedEvent.value) return
+  await templateStore.listMyTemplates()
+  const titles = templateStore.templates.map((t, i) => `${i + 1}. ${t.title}`).join('\n')
+  const choice = window.prompt(`Select a template to apply to event:\n${titles}\nEnter number:`)
+  if (!choice) return
+  const idx = parseInt(choice, 10) - 1
+  const t = templateStore.templates[idx]
+  if (!t) return
+  const result = await templateStore.applyTemplateToEvent(t.id, selectedEvent.value.id)
+  if (result && (result as any).application) {
+    const appId = (result as any).application as string
+    // Materialize applied duties into DutyRoster with dueAt = event.endsAt
+    const applied = await apiService.getAppliedDutiesForApplication(appId)
+    const dueAt = selectedEvent.value.endsAt
+    if (applied.data) {
+      for (const ad of applied.data as any[]) {
+        await apiService.addDuty(selectedEvent.value.id, eventStore.currentActor, ad.dutyName, dueAt)
+      }
+    }
+    await dutyStore.loadEventDuties(selectedEvent.value.id)
+  }
 }
 </script>
 

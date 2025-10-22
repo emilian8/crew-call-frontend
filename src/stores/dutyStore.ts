@@ -33,6 +33,38 @@ export const useDutyStore = defineStore('duty', () => {
     currentEvent.value = event
   }
 
+  const loadEventDuties = async (eventId: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await apiService.getEventDuties(eventId)
+      if (res.error) {
+        setError(res.error)
+        return
+      }
+      const docs: any[] = (res.data as any) || []
+      const mapped: Duty[] = docs.map((d: any) => ({
+        id: d._id,
+        title: d.title,
+        dueAt: new Date(d.dueAt).toISOString(),
+        status: d.status,
+        assignee: d.assignee ?? undefined,
+        event: d.event,
+        updatedAt: new Date(d.updatedAt).toISOString(),
+      }))
+      if (currentEvent.value && currentEvent.value.id === eventId) {
+        currentEvent.value.duties = mapped
+      } else if (currentEvent.value && currentEvent.value.id !== eventId) {
+        // no-op: caller should have setCurrentEvent already
+        currentEvent.value.duties = mapped
+      }
+    } catch (err) {
+      setError('Failed to load duties')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const setError = (message: string | null) => {
     error.value = message
   }
@@ -259,6 +291,7 @@ export const useDutyStore = defineStore('duty', () => {
 
     // Actions
     setCurrentEvent,
+    loadEventDuties,
     setError,
     setLoading,
     addDuty,

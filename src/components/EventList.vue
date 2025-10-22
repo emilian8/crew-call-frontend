@@ -16,10 +16,20 @@
           class="event-card"
           @click="$emit('select-event', event)"
         >
-          <h3>{{ event.title }}</h3>
-          <p class="event-date">{{ formatDate(event.date) }}</p>
+          <div class="card-header">
+            <h3>{{ event.title }}</h3>
+            <button
+              v-if="eventStore.roles[event.id] === 'Organizer'"
+              class="btn btn-danger btn-sm"
+              title="Delete event"
+              @click.stop="$emit('delete-event', event.id)"
+            >
+              Delete
+            </button>
+          </div>
+          <p class="event-date">{{ formatDate(event.startsAt) }} → {{ formatDate(event.endsAt) }}</p>
           <div class="duty-count">
-            {{ event.duties.length }} duties
+            {{ event.active ? 'Active' : 'Inactive' }}
           </div>
         </div>
       </div>
@@ -29,16 +39,19 @@
 
 <script setup lang="ts">
 import type { Event } from '@/services/api'
+import { useEventStore } from '@/stores/eventStore'
 
 interface Props {
   events: Event[]
 }
 
 defineProps<Props>()
+const eventStore = useEventStore()
 
 const emit = defineEmits<{
   'create-event': []
-  'select-event': [event: Event]
+  'select-event': [event: Event],
+  'delete-event': [id: string]
 }>()
 
 const formatDate = (dateString: string) => {
@@ -140,3 +153,13 @@ const formatDate = (dateString: string) => {
   font-weight: 500;
 }
 </style>
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
+.btn-danger { background: #dc3545; color: #fff; border: none; }
+.btn-danger:hover { filter: brightness(0.95); }

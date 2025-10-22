@@ -42,6 +42,12 @@
       <button class="btn btn-secondary" @click="$emit('apply-template')">
         Apply Template
       </button>
+      <button class="btn btn-danger" @click="deleteCurrentEvent" v-if="props.event">
+        Delete Event
+      </button>
+      <button class="btn btn-secondary" @click="handleMembers">
+        Members
+      </button>
     </div>
 
     <!-- Add Duty Modal -->
@@ -65,6 +71,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useDutyStore } from '@/stores/dutyStore'
+import { useEventStore } from '@/stores/eventStore'
 import type { Duty } from '@/services/api'
 import DutyItem from './DutyItem.vue'
 import DutyForm from './DutyForm.vue'
@@ -81,6 +88,7 @@ const emit = defineEmits<{
 }>()
 
 const dutyStore = useDutyStore()
+const eventStore = useEventStore()
 const showAddDuty = ref(false)
 const showEditDuty = ref(false)
 const editingDuty = ref<Duty | null>(null)
@@ -130,6 +138,43 @@ const handleUpdateDuty = (title: string, dueAt: string) => {
     showEditDuty.value = false
     editingDuty.value = null
   }
+}
+
+const handleMembers = async () => {
+  if (!props.event) return
+  await eventStore.loadMembers(props.event.id)
+  const list = (eventStore.members[props.event.id] || []).map(m => `${m.user} [${m.role}]`).join('\n') || '(none)'
+  const action = window.prompt(`Members for ${props.event.title}:\n${list}\n\nChoose action: invite | remove | toggle | delete`)
+  if (!action) return
+  if (action === 'invite') {
+    const user = window.prompt('User ID to invite?') || ''
+    const role = (window.prompt('Role? Organizer or DutyMember') || 'DutyMember') as 'Organizer' | 'DutyMember'
+    if (!user) return
+    await eventStore.inviteMember(props.event.id, user, role)
+  } else if (action === 'remove') {
+    const user = window.prompt('User ID to remove?') || ''
+    if (!user) return
+    await eventStore.removeMember(props.event.id, user)
+  } else if (action === 'toggle') {
+    const flag = window.confirm('Set event to Active? (Cancel = Inactive)')
+    await eventStore.setActive(props.event.id, flag)
+  } else if (action === 'delete') {
+    if (window.confirm('Delete event permanently?')) {
+      await eventStore.deleteEvent(props.event.id)
+    }
+  }
+}
+
+const deleteCurrentEvent = async () => {
+  if (!props.event) return
+  const role = eventStore.roles[props.event.id]
+  if (role !== 'Organizer') {
+    alert('Only organizers can delete events.')
+    return
+  }
+  if (!confirm(`Delete event "${props.event.title}"?`)) return
+  await eventStore.deleteEvent(props.event.id)
+  emit('back')
 }
 </script>
 
@@ -196,6 +241,9 @@ const handleUpdateDuty = (title: string, dueAt: string) => {
 .btn-secondary:hover {
   background: #e9ecef;
 }
+
+.btn-danger { background: #dc3545; color: #fff; border: none; }
+.btn-danger:hover { filter: brightness(0.95); }
 
 .duty-board-content {
   margin-bottom: 2rem;
