@@ -15,7 +15,6 @@
         v-else-if="currentView === 'duty-board'"
         :event="selectedEvent"
         @back="currentView = 'event-list'"
-        @apply-template="handleApplyTemplate"
       />
 
       <!-- Create Event Modal -->
@@ -32,9 +31,7 @@
 import { ref, onMounted } from 'vue'
 import { useDutyStore } from '@/stores/dutyStore'
 import { useEventStore } from '@/stores/eventStore'
-import { useTemplateStore } from '@/stores/templateStore'
 import { useNotifyStore } from '@/stores/notifyStore'
-import { apiService } from '@/services/api'
 import type { Event } from '@/services/api'
 import EventList from '@/components/EventList.vue'
 import DutyBoard from '@/components/DutyBoard.vue'
@@ -42,7 +39,6 @@ import CreateEventModal from '@/components/CreateEventModal.vue'
 
 const dutyStore = useDutyStore()
 const eventStore = useEventStore()
-const templateStore = useTemplateStore()
 const notifyStore = useNotifyStore()
 
 const currentView = ref<'event-list' | 'duty-board'>('event-list')
@@ -80,29 +76,7 @@ const handleDeleteEvent = async (eventId: string) => {
   await eventStore.deleteEvent(eventId)
 }
 
-const handleApplyTemplate = async () => {
-  if (!selectedEvent.value) return
-  await templateStore.listMyTemplates()
-  const titles = templateStore.templates.map((t, i) => `${i + 1}. ${t.title}`).join('\n')
-  const choice = window.prompt(`Select a template to apply to event:\n${titles}\nEnter number:`)
-  if (!choice) return
-  const idx = parseInt(choice, 10) - 1
-  const t = templateStore.templates[idx]
-  if (!t) return
-  const result = await templateStore.applyTemplateToEvent(t.id, selectedEvent.value.id)
-  if (result && (result as any).application) {
-    const appId = (result as any).application as string
-    // Materialize applied duties into DutyRoster with dueAt = event.endsAt
-    const applied = await apiService.getAppliedDutiesForApplication(appId)
-    const dueAt = selectedEvent.value.endsAt
-    if (applied.data) {
-      for (const ad of applied.data as any[]) {
-        await apiService.addDuty(selectedEvent.value.id, eventStore.currentActor, ad.dutyName, dueAt)
-      }
-    }
-    await dutyStore.loadEventDuties(selectedEvent.value.id)
-  }
-}
+// removed Apply Template feature
 </script>
 
 <style scoped>

@@ -43,6 +43,9 @@
         <button class="btn btn-sm btn-info" @click="$emit('reopen', duty.id)">
           Reopen
         </button>
+        <button class="btn btn-sm btn-secondary" @click="$emit('archive', duty.id)">
+          Archive
+        </button>
         <button class="btn btn-sm btn-secondary" @click="$emit('edit', duty)">
           Edit
         </button>
@@ -60,9 +63,7 @@
           <label>Assign to:</label>
           <select v-model="selectedAssignee" class="form-control">
             <option value="">Select assignee</option>
-            <option value="user-1">User 1</option>
-            <option value="user-2">User 2</option>
-            <option value="user-3">User 3</option>
+            <option v-for="u in memberOptions" :key="u" :value="u">{{ u }}</option>
           </select>
         </div>
         <div class="modal-actions">
@@ -84,6 +85,7 @@ import type { Duty } from '@/services/api'
 
 interface Props {
   duty: Duty
+  memberOptions: string[]
 }
 
 const props = defineProps<Props>()
@@ -93,6 +95,7 @@ const emit = defineEmits<{
   unassign: [dutyId: string]
   'mark-done': [dutyId: string]
   reopen: [dutyId: string]
+  archive: [dutyId: string]
   delete: [dutyId: string]
   edit: [duty: Duty]
 }>()

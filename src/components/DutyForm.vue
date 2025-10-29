@@ -38,9 +38,7 @@
             class="form-control"
           >
             <option value="">Event members</option>
-            <option value="user-1">User 1</option>
-            <option value="user-2">User 2</option>
-            <option value="user-3">User 3</option>
+            <option v-for="u in (props.memberOptions || [])" :key="u" :value="u">{{ u }}</option>
           </select>
         </div>
 
@@ -63,6 +61,7 @@ import type { Duty } from '@/services/api'
 
 interface Props {
   duty: Duty | null
+  memberOptions?: string[]
 }
 
 const props = defineProps<Props>()

@@ -28,6 +28,25 @@ export const useDutyStore = defineStore('duty', () => {
     return currentEventDuties.value.filter(duty => duty.status === 'Done')
   })
 
+  // Local archive (UI-only) by event id (reactive for immediate UI updates)
+  const archived = ref<Record<string, Record<string, true>>>({})
+  const archiveTick = ref(0)
+  const isArchived = (eventId: string, dutyId: string) => !!archived.value[eventId]?.[dutyId]
+  const archiveDuty = async (dutyId: string) => {
+    if (!currentEvent.value) return
+    const evt = currentEvent.value.id
+    const duty = currentEventDuties.value.find(d => d.id === dutyId)
+    if (!duty) return
+    // Ensure done to count points
+    if (duty.status !== 'Done') {
+      await markDone(dutyId)
+    }
+    // Mark archived reactively so UI filters immediately
+    const bucket = archived.value[evt] || {}
+    archived.value = { ...archived.value, [evt]: { ...bucket, [dutyId]: true } }
+    archiveTick.value++
+  }
+
   // Actions
   const setCurrentEvent = (event: Event) => {
     currentEvent.value = event
@@ -73,7 +92,7 @@ export const useDutyStore = defineStore('duty', () => {
     loading.value = isLoading
   }
 
-  const addDuty = async (title: string, dueAt: string) => {
+  const addDuty = async (title: string, dueAt: string, assignee?: string) => {
     if (!currentEvent.value) return
 
     setLoading(true)
@@ -109,6 +128,10 @@ export const useDutyStore = defineStore('duty', () => {
         if (currentEvent.value) {
           currentEvent.value.duties.push(newDuty)
           console.log('Successfully added duty:', newDuty)
+        }
+
+        if (assignee) {
+          await assignDuty(newDuty.id, assignee)
         }
       }
     } catch (err) {
@@ -292,6 +315,9 @@ export const useDutyStore = defineStore('duty', () => {
     // Actions
     setCurrentEvent,
     loadEventDuties,
+    isArchived,
+    archiveDuty,
+    archiveTick,
     setError,
     setLoading,
     addDuty,
