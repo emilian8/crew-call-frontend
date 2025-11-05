@@ -2,7 +2,7 @@
 
 // Prefer env var (e.g., VITE_API_BASE_URL="https://api.example.com/api"),
 // otherwise default to same-origin "/api" (use your host's reverse proxy).
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '')
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export interface Duty { id: string; title: string; dueAt: string; status: 'Open' | 'Assigned' | 'Done'; assignee?: string | null; event: string; updatedAt: string }
 export interface Event { id: string; title: string; startsAt: string; endsAt: string; active: boolean; duties?: Duty[] }
