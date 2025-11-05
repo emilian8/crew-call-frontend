@@ -52,6 +52,13 @@ export interface ApiResponse<T> {
 }
 
 class ApiService {
+  private getToken(): string | undefined {
+    try {
+      return localStorage.getItem('crewcall_token') || undefined
+    } catch {
+      return undefined
+    }
+  }
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -76,7 +83,11 @@ class ApiService {
 
       const data = await response.json()
       if (data && typeof data === 'object' && 'error' in data) {
-        return { error: (data as any).error as string }
+        const errVal = (data as any).error
+        if (typeof errVal === 'string' && errVal.length > 0) {
+          return { error: errVal }
+        }
+        // if error is null/undefined, treat as success and pass through data
       }
       return { data }
     } catch (error) {
@@ -87,37 +98,37 @@ class ApiService {
   // -------------------- DutyRoster --------------------
   async addDuty(event: string, actor: string, title: string, dueAt: string) {
     return this.request<{ duty: string }>('/DutyRoster/addDuty', {
-      body: JSON.stringify({ event, actor, title, dueAt }),
+      body: JSON.stringify({ token: this.getToken(), event, actor, title, dueAt }),
     })
   }
   async assignDuty(duty: string, actor: string, assignee: string) {
     return this.request<{}>('/DutyRoster/assignDuty', {
-      body: JSON.stringify({ duty, actor, assignee }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor, assignee }),
     })
   }
   async unassignDuty(duty: string, actor: string) {
     return this.request<{}>('/DutyRoster/unassignDuty', {
-      body: JSON.stringify({ duty, actor }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor }),
     })
   }
   async updateDuty(duty: string, actor: string, title?: string, dueAt?: string) {
     return this.request<{}>('/DutyRoster/updateDuty', {
-      body: JSON.stringify({ duty, actor, title, dueAt }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor, title, dueAt }),
     })
   }
   async markDone(duty: string, actor: string) {
     return this.request<{}>('/DutyRoster/markDone', {
-      body: JSON.stringify({ duty, actor }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor }),
     })
   }
   async reOpen(duty: string, actor: string) {
     return this.request<{}>('/DutyRoster/reOpen', {
-      body: JSON.stringify({ duty, actor }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor }),
     })
   }
   async deleteDuty(duty: string, actor: string) {
     return this.request<{}>('/DutyRoster/deleteDuty', {
-      body: JSON.stringify({ duty, actor }),
+      body: JSON.stringify({ token: this.getToken(), duty, actor }),
     })
   }
   async getEventDuties(event: string) {
@@ -132,27 +143,27 @@ class ApiService {
     // The concept requires Date objects; however over JSON they arrive as strings; Deno will produce strings and code checks instanceof Date.
     // To satisfy, we send Mongo Extended JSON style {"$date": iso} so backend toDate-like logic isn't present here. For EventDirectory, we will rely on Deno treating via reviver — not available. Instead, send numeric epoch and adjust server later. For now, pass new Date() like strings and ensure backend allows. If it rejects, we can adjust.
     return this.request<{ event: string }>('/EventDirectory/createEvent', {
-      body: JSON.stringify({ creator, title, startsAt: { $date: startsAt }, endsAt: { $date: endsAt } }),
+      body: JSON.stringify({ token: this.getToken(), creator, title, startsAt: { $date: startsAt }, endsAt: { $date: endsAt } }),
     })
   }
   async invite(event: string, inviter: string, invitee: string, role: 'Organizer' | 'DutyMember') {
     return this.request<{}>('/EventDirectory/invite', {
-      body: JSON.stringify({ event, inviter, invitee, role }),
+      body: JSON.stringify({ token: this.getToken(), event, inviter, invitee, role }),
     })
   }
   async setActive(event: string, setter: string, flag: boolean) {
     return this.request<{}>('/EventDirectory/setActive', {
-      body: JSON.stringify({ event, setter, flag }),
+      body: JSON.stringify({ token: this.getToken(), event, setter, flag }),
     })
   }
   async removeMember(event: string, actor: string, member: string) {
     return this.request<{}>('/EventDirectory/removeMember', {
-      body: JSON.stringify({ event, actor, member }),
+      body: JSON.stringify({ token: this.getToken(), event, actor, member }),
     })
   }
   async deleteEvent(event: string, actor: string) {
     return this.request<{}>('/EventDirectory/deleteEvent', {
-      body: JSON.stringify({ event, actor }),
+      body: JSON.stringify({ token: this.getToken(), event, actor }),
     })
   }
   async getEvent(event: string) {
@@ -222,6 +233,18 @@ class ApiService {
   async deleteNotification(notification: string, user: string) {
     return this.request<{}>('/Notify/deleteNotification', {
       body: JSON.stringify({ notification, user }),
+    })
+  }
+
+  // -------------------- Auth --------------------
+  async login(email: string, pw: string) {
+    return this.request<{ token: string; userId: string }>('/Auth/login', {
+      body: JSON.stringify({ email, pw }),
+    })
+  }
+  async createAccount(email: string, pw: string) {
+    return this.request<{ created: boolean; message?: string }>('/Auth/createAccount', {
+      body: JSON.stringify({ email, pw }),
     })
   }
 }

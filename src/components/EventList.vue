@@ -18,6 +18,13 @@
         >
           <div class="card-header">
             <h3>{{ event.title }}</h3>
+            <span
+              v-if="auth.userId"
+              class="badge"
+              :title="`Your role: ${eventStore.roles[event.id] || 'Member'}`"
+            >
+              {{ auth.userId }}
+            </span>
             <button
               v-if="eventStore.roles[event.id] === 'Organizer'"
               class="btn btn-danger btn-sm"
@@ -40,6 +47,7 @@
 <script setup lang="ts">
 import type { Event } from '@/services/api'
 import { useEventStore } from '@/stores/eventStore'
+import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
   events: Event[]
@@ -47,6 +55,7 @@ interface Props {
 
 defineProps<Props>()
 const eventStore = useEventStore()
+const auth = useAuthStore()
 
 const emit = defineEmits<{
   'create-event': []
@@ -163,3 +172,4 @@ const formatDate = (dateString: string) => {
 .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.85rem; }
 .btn-danger { background: #dc3545; color: #fff; border: none; }
 .btn-danger:hover { filter: brightness(0.95); }
+.badge { background:#eef2ff; color:#334155; border:1px solid #c7d2fe; border-radius:12px; padding:.2rem .5rem; font-size:.8rem; }

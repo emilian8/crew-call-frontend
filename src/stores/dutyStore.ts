@@ -52,6 +52,10 @@ export const useDutyStore = defineStore('duty', () => {
     currentEvent.value = event
   }
 
+  const setActor = (id: string) => {
+    currentActor.value = id
+  }
+
   const loadEventDuties = async (eventId: string) => {
     setLoading(true)
     setError(null)
@@ -314,6 +318,7 @@ export const useDutyStore = defineStore('duty', () => {
 
     // Actions
     setCurrentEvent,
+    setActor,
     loadEventDuties,
     isArchived,
     archiveDuty,

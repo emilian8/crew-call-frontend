@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useAuthStore } from './authStore'
 import { apiService, type Event, type Member } from '@/services/api'
 
 export const useEventStore = defineStore('event', () => {
-  const currentActor = ref<string>('actor-1') // TODO: wire to auth/session
+  const currentActor = ref<string>('actor-1') // will be set from auth on login
   const events = ref<Event[]>([])
   const members = ref<Record<string, Member[]>>({}) // keyed by event id
   const roles = ref<Record<string, 'Organizer' | 'DutyMember'>>({})
@@ -12,6 +13,8 @@ export const useEventStore = defineStore('event', () => {
 
   const setError = (msg: string | null) => { error.value = msg }
   const setLoading = (v: boolean) => { loading.value = v }
+
+  const setActor = (id: string) => { currentActor.value = id }
 
   const loadMyEvents = async () => {
     setLoading(true)
@@ -37,7 +40,13 @@ export const useEventStore = defineStore('event', () => {
           })
         }
       }
-      events.value = loaded
+      // De-duplicate by id in case of race conditions
+      const seen = new Set<string>()
+      const uniq: Event[] = []
+      for (const ev of loaded) {
+        if (!seen.has(ev.id)) { seen.add(ev.id); uniq.push(ev) }
+      }
+      events.value = uniq
     } catch (_) {
       setError('Failed to load events')
     } finally {
@@ -56,14 +65,21 @@ export const useEventStore = defineStore('event', () => {
         const ev = await apiService.getEvent(res.data.event)
         if (ev.data) {
           const e = ev.data as any
-          events.value.unshift({
+          const newEvt: Event = {
             id: e._id,
             title: e.title,
             startsAt: new Date(e.startsAt).toISOString(),
             endsAt: new Date(e.endsAt).toISOString(),
             active: !!e.active,
             duties: [],
-          })
+          }
+          const existingIdx = events.value.findIndex(ev => ev.id === newEvt.id)
+          if (existingIdx >= 0) {
+            // Replace existing to avoid duplicates
+            events.value.splice(existingIdx, 1, newEvt)
+          } else {
+            events.value.unshift(newEvt)
+          }
           roles.value[e._id] = 'Organizer'
         }
       }
@@ -116,6 +132,7 @@ export const useEventStore = defineStore('event', () => {
     error,
     setError,
     setLoading,
+    setActor,
     loadMyEvents,
     createEvent,
     loadMembers,

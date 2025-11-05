@@ -22,5 +22,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src", "../crew-call/src/syncs/crewcall.sync.ts", "../crew-call/src/syncs/crewcall_auth.sync.ts"]
 }
